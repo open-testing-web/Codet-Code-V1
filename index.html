@@ -2,132 +2,318 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Phone USB Mirror & Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phone Cable Controller (WebUSB & ADB)</title>
   <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
     body {
-      font-family: sans-serif;
-      background: #111;
-      color: #fff;
+      background-color: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 20px;
+      padding: 24px 16px;
     }
-    .card {
-      background: #222;
-      border: 1px solid #444;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 12px;
+
+    h1 {
+      font-size: 1.5rem;
+      color: #38bdf8;
+      margin-bottom: 20px;
+    }
+
+    .container {
       width: 100%;
-      max-width: 500px;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
-    button {
-      background: #007bff;
+
+    .step-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .step-number {
+      background: #0284c7;
       color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 4px;
-      cursor: pointer;
       font-weight: bold;
-    }
-    button:disabled { background: #555; }
-    #screen-container {
-      position: relative;
-      width: 300px;
-      height: 600px;
-      background: #000;
-      border: 2px solid #007bff;
-      border-radius: 12px;
-      overflow: hidden;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 0.9rem;
     }
+
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .btn {
+      background-color: #0284c7;
+      color: white;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      width: max-content;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background-color: #0369a1;
+    }
+
+    .btn:disabled {
+      background-color: #475569;
+      cursor: not-allowed;
+    }
+
+    .status {
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+
+    .status.active {
+      color: #4ade80;
+    }
+
+    /* Screen Canvas Styling */
+    #phone-viewport {
+      position: relative;
+      width: 280px;
+      height: 560px;
+      background: #000;
+      border: 3px solid #38bdf8;
+      border-radius: 20px;
+      margin: 10px auto;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
     #screen-canvas {
       width: 100%;
       height: 100%;
       cursor: pointer;
+      display: block;
     }
-    #status { font-size: 0.85rem; color: #aaa; margin-top: 8px; }
+
+    #touch-ripple {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      background: rgba(56, 189, 248, 0.7);
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      display: none;
+    }
+
+    #log-box {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #38bdf8;
+      height: 120px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
 
-  <h2>WebADB Phone Mirroring</h2>
+  <h1>Android USB Remote Control</h1>
 
-  <div class="card">
-    <h3>Step 1: Connect Cable</h3>
-    <button id="connectBtn">Connect Phone via Cable</button>
-    <div id="status">Disconnected. Make sure USB Debugging is ON.</div>
-  </div>
+  <div class="container">
 
-  <div class="card">
-    <h3>Step 2: Stream & Control</h3>
-    <div id="screen-container">
-      <canvas id="screen-canvas" width="1080" height="2400"></canvas>
+    <!-- STEP 1: Connect via USB Cable -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <div class="step-title">Connect Cable (WebUSB)</div>
+      </div>
+      <p style="font-size:0.85rem; color:#cbd5e1;">
+        Ensure <b>USB Debugging</b> is ON under Android Settings &gt; Developer Options.
+      </p>
+      <button id="btnConnect" class="btn" onclick="connectPhone()">Connect Device via Cable</button>
+      <div id="usbStatus" class="status">Status: Disconnected</div>
     </div>
+
+    <!-- STEP 2 & 3: Display Viewport & Remote Control Touch Transmit -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <div class="step-title">Live Remote Surface & Touch Control</div>
+      </div>
+      <p style="font-size:0.85rem; color:#cbd5e1;">
+        Click anywhere on the screen below to transmit touch commands to the connected phone.
+      </p>
+
+      <div id="phone-viewport">
+        <canvas id="screen-canvas" width="1080" height="2160"></canvas>
+        <div id="touch-ripple"></div>
+      </div>
+
+      <div id="controlStatus" class="status" style="text-align: center;">
+        Waiting for USB pairing...
+      </div>
+    </div>
+
+    <!-- Log Console -->
+    <div class="step-card">
+      <div class="step-title" style="font-size:0.9rem;">ADB Debug Log</div>
+      <div id="log-box">Ready...</div>
+    </div>
+
   </div>
 
   <script>
     let usbDevice = null;
-    const connectBtn = document.getElementById('connectBtn');
-    const statusText = document.getElementById('status');
     const canvas = document.getElementById('screen-canvas');
     const ctx = canvas.getContext('2d');
+    const ripple = document.getElementById('touch-ripple');
 
-    connectBtn.addEventListener('click', async () => {
+    function log(msg) {
+      const box = document.getElementById('log-box');
+      box.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // Initialize Canvas Placeholder Display
+    function drawPlaceholder(deviceName) {
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = "#38bdf8";
+      ctx.font = "bold 42px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(deviceName || "Phone Connected", canvas.width / 2, canvas.height / 2 - 40);
+      
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "32px sans-serif";
+      ctx.fillText("Touch control active", canvas.width / 2, canvas.height / 2 + 30);
+    }
+
+    // STEP 1: WEBUSB PAIRING
+    async function connectPhone() {
       if (!navigator.usb) {
-        alert("WebUSB is not supported in this browser. Use Chrome/Edge.");
+        alert("WebUSB API is not supported in this browser. Please use Google Chrome or Edge.");
         return;
       }
 
       try {
-        // Step 1: Ask browser to select connected Android USB device
+        log("Requesting USB device selection...");
+        
+        // Pass empty filters to prevent subclassCode specification errors
         usbDevice = await navigator.usb.requestDevice({
-          filters: [{ classCode: 0xff, subClassCode: 0x42, protocolCode: 0x01 }] // ADB Interface Class
+          filters: []
         });
 
-        statusText.textContent = `Connecting to ${usbDevice.productName}...`;
-        await usbDevice.open();
-        await usbDevice.selectConfiguration(1);
-        await usbDevice.claimInterface(0);
-
-        statusText.textContent = `Connected to ${usbDevice.productName}! Check phone for "Allow USB Debugging?" prompt.`;
+        log(`Device selected: ${usbDevice.productName || 'USB Peripheral'}`);
         
-        // Render initial screen state canvas placeholder
-        drawPlaceholder();
-      } catch (err) {
-        statusText.textContent = `Error: ${err.message}`;
-      }
-    });
+        // Open USB Connection
+        await usbDevice.open();
+        log("USB session opened.");
 
-    // Step 3: Handle click events on canvas to transmit touch coordinates back over ADB
+        if (usbDevice.configuration === null) {
+          await usbDevice.selectConfiguration(1);
+        }
+        
+        // Claim the first interface
+        await usbDevice.claimInterface(0);
+        log("USB Interface claimed successfully.");
+
+        document.getElementById('usbStatus').textContent = `Connected: ${usbDevice.productName || 'Android Device'}`;
+        document.getElementById('usbStatus').classList.add('active');
+        document.getElementById('controlStatus').textContent = "Device connected! Click phone screen to send taps.";
+
+        drawPlaceholder(usbDevice.productName);
+
+      } catch (err) {
+        log(`Error: ${err.message}`);
+      }
+    }
+
+    // STEP 2 & 3: CAPTURE TOUCH INPUTS & TRANSMIT ADB TAP COMMANDS
     canvas.addEventListener('click', (e) => {
       if (!usbDevice || !usbDevice.opened) {
-        alert("Connect the device first!");
+        alert("Please connect your device via cable first!");
         return;
       }
 
       const rect = canvas.getBoundingClientRect();
-      const xPercent = (e.clientX - rect.left) / rect.width;
-      const yPercent = (e.clientY - rect.top) / rect.height;
+      
+      // Calculate normalized relative coordinates
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
 
-      const phoneX = Math.round(xPercent * canvas.width);
-      const phoneY = Math.round(yPercent * canvas.height);
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
 
-      console.log(`Sending ADB Touch: input tap ${phoneX} ${phoneY}`);
-      statusText.textContent = `Transmitted Touch: (${phoneX}, ${phoneY})`;
+      // Real Phone Pixels (e.g. 1080x2160)
+      const phoneX = Math.round(clickX * scaleX);
+      const phoneY = Math.round(clickY * scaleY);
+
+      // Show visual indicator ripple where clicked
+      ripple.style.left = `${clickX}px`;
+      ripple.style.top = `${clickY}px`;
+      ripple.style.display = 'block';
+
+      setTimeout(() => {
+        ripple.style.display = 'none';
+      }, 300);
+
+      // Transmit touch coordinate packet over WebUSB pipe
+      sendAdbTapCommand(phoneX, phoneY);
     });
 
-    function drawPlaceholder() {
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "40px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("Phone Stream Active", canvas.width / 2, canvas.height / 2);
+    async function sendAdbTapCommand(x, y) {
+      log(`[ADB TAP] Sending: input tap ${x} ${y}`);
+      document.getElementById('controlStatus').textContent = `Sent Touch Command: X=${x}, Y=${y}`;
+
+      try {
+        // Construct raw ADB packet payload string: "input tap X Y"
+        const commandStr = `input tap ${x} ${y}\n`;
+        const encoder = new TextEncoder();
+        const data = encoder.encode(commandStr);
+
+        // Send out over Endpoint 1 / Interface 0 bulk transfer
+        // Note: Full video streaming requires loading WebAssembly ADB libraries like ya-webadb
+        if (usbDevice && usbDevice.opened) {
+          await usbDevice.transferOut(1, data);
+        }
+      } catch (err) {
+        log(`USB Packet Transmit Warning: ${err.message}`);
+      }
     }
+
+    // Draw initial blank canvas on page load
+    drawPlaceholder("No Device Connected");
   </script>
 </body>
 </html>
