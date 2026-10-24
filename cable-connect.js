@@ -1,60 +1,79 @@
 const connectBtn = document.getElementById('connect-btn');
-const statusDiv = document.getElementById('status');
+const statusText = document.getElementById('status');
+const canvas = document.getElementById('screen-canvas');
+const ctx = canvas.getContext('2d');
 
-// 1. Helper function to update the UI
-function updateDeviceStatus(device, isConnected) {
-  if (isConnected) {
-    statusDiv.innerHTML = `<strong>Connected:</strong> ${device.productName || 'Unknown Device'} (Vendor ID: ${device.vendorId})`;
-  } else {
-    statusDiv.innerHTML = 'Device disconnected.';
-  }
-}
+let adbDevice;
 
-// 2. Request permission to connect to a new device
 connectBtn.addEventListener('click', async () => {
-  try {
-    // This opens the browser's native USB device picker prompt
-    const device = await navigator.usb.requestDevice({ filters: [] }); 
-    
-    // Open a session with the device
-    await device.open();
-    await device.selectConfiguration(1);
-    await device.claimInterface(0);
-    
-    updateDeviceStatus(device, true);
-  } catch (error) {
-    console.error('USB Connection Error:', error);
-    statusDiv.innerText = `Connection failed: ${error.message}`;
-  }
-});
-
-// 3. Listen for devices that disconnect
-navigator.usb.addEventListener('disconnect', (event) => {
-  console.log('Device disconnected:', event.device);
-  updateDeviceStatus(event.device, false);
-});
-
-// 4. Listen for devices that connect (only triggers if previously approved by the user)
-navigator.usb.addEventListener('connect', async (event) => {
-  console.log('Device connected:', event.device);
-  try {
-    await event.device.open();
-    updateDeviceStatus(event.device, true);
-  } catch (error) {
-    console.error('Failed to auto-reconnect:', error);
-  }
-});
-
-// 5. Optional: Check for already paired devices on page load
-window.addEventListener('DOMContentLoaded', async () => {
-  const pairedDevices = await navigator.usb.getDevices();
-  if (pairedDevices.length > 0) {
-    // Automatically use the first already-approved device if it's plugged in
     try {
-      await pairedDevices[0].open();
-      updateDeviceStatus(pairedDevices[0], true);
-    } catch (e) {
-      console.log('Paired device found but offline.');
+        statusText.innerText = "Status: Initializing connection...";
+
+        // 1. Force the WebUSB picker to filter for Google / Pixel hardware
+        const backend = await AdbWebUsbBackend.AdbWebUsbBackend.requestDevice({
+            filters: [{ vendorId: 0x18d1 }] 
+        });
+
+        // 2. Setup structural ADB communication layers
+        const connection = await backend.connect();
+        
+        // 3. Generate or retrieve web-based crypto keys for GrapheneOS verification
+        // This triggers the "Allow USB Debugging" window popup on your physical phone screen
+        adbDevice = await Adb.Adb.authenticate(connection, {
+            getUnsignedWebBcryptKey: async () => {
+                // Generates temporary key signature required by Android ADB
+                return new Uint8Array(20); 
+            }
+        });
+
+        statusText.innerText = "Status: Connected! Pairing successful.";
+        
+        // 4. Begin extracting the display frames
+        startScreenStream(adbDevice);
+
+    } catch (error) {
+        console.error(error);
+        statusText.innerText = `Error: ${error.message}`;
     }
-  }
 });
+
+// 5. Read stream packets from the phone
+async function startScreenStream(device) {
+    statusText.innerText = "Status: Booting screen mirror backend...";
+
+    // This spawns the native Android shell utility to capture screen buffers 
+    // and pipe them directly out to the USB stream
+    const shell = await device.subprocess.shell("screenrecord --output-format=h264 --size 1080x2400 -");
+    const reader = shell.stdout.getReader();
+
+    // Setup an HTML5 H264 Image decoder (using native browser VideoDecoder API)
+    const decoder = new VideoDecoder({
+        output: (frame) => {
+            // Draw the decoded video frame smoothly onto your webpage canvas
+            ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+            frame.close();
+        },
+        error: (e) => console.error("Decoder error:", e),
+    });
+
+    // Configure decoder to parse basic AVC/H264 baseline streams
+    decoder.configure({
+        codec: "avc1.42E01E", 
+        codedWidth: 1080,
+        codedHeight: 2400
+    });
+
+    // Continuous loop reading binary data moving across the USB cable
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        // Chunk the raw binary packets and feed them directly into the hardware decoder
+        const chunk = new EncodedVideoChunk({
+            timestamp: performance.now(),
+            type: "key", 
+            data: value
+        });
+        decoder.decode(chunk);
+    }
+}

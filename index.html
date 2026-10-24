@@ -1,11 +1,27 @@
 <!DOCTYPE html>
+<html lang="en">
 <head>
-<title>Codet Code</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel 8a Stream Dashboard</title>
+    <!-- Import essential WebADB modules -->
+    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com"></script>
+    <style>
+        #screen-canvas { background: #000; max-width: 100%; max-height: 80vh; border-radius: 12px; }
+        .controls { margin-bottom: 15px; }
+    </style>
 </head>
 <body>
-<button id="connect-btn">Connect USB Device</button>
-<div id="status">No device connected.</div>
+
+    <div class="controls">
+        <button id="connect-btn">🔌 Connect Pixel 8a</button>
+        <span id="status">Status: Disconnected</span>
+    </div>
+
+    <!-- The phone screen will render live here -->
+    <canvas id="screen-canvas" width="1080" height="2400"></canvas>
+
+    <script src="app.js"></script>
 </body>
-<script src="cable-connect.js"></script>
 </html>
