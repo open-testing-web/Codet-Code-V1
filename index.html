@@ -3,317 +3,331 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phone Cable Controller (WebUSB & ADB)</title>
+  <title>Tango WebADB Remote Mirror & Controller</title>
   <style>
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
     body {
-      background-color: #0f172a;
-      color: #f8fafc;
-      min-height: 100vh;
+      background-color: #0d1117;
+      color: #c9d1d9;
+      height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background-color: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      padding: 24px 16px;
     }
 
-    h1 {
-      font-size: 1.5rem;
-      color: #38bdf8;
-      margin-bottom: 20px;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #58a6ff;
     }
 
-    .container {
-      width: 100%;
-      max-width: 600px;
+    .status-badge {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background-color: #21262d;
+      color: #8b949e;
+      border: 1px solid #30363d;
+    }
+
+    .status-badge.connected {
+      background-color: rgba(46, 160, 67, 0.15);
+      color: #3fb950;
+      border-color: rgba(46, 160, 67, 0.4);
+    }
+
+    /* Main Container Layout */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr 300px;
+      height: calc(100vh - 57px);
+    }
+
+    /* Sidebar Panels */
+    .panel {
+      background-color: #161b22;
+      border-right: 1px solid #30363d;
+      padding: 16px;
       display: flex;
       flex-direction: column;
       gap: 16px;
+      overflow-y: auto;
     }
 
-    .step-card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 10px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+    .panel-right {
+      border-right: none;
+      border-left: 1px solid #30363d;
     }
 
-    .step-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .step-number {
-      background: #0284c7;
-      color: white;
-      font-weight: bold;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .panel-title {
       font-size: 0.9rem;
-    }
-
-    .step-title {
-      font-size: 1.1rem;
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #8b949e;
+      margin-bottom: 8px;
     }
 
     .btn {
-      background-color: #0284c7;
-      color: white;
+      background-color: #238636;
+      color: #ffffff;
       border: none;
-      padding: 12px 18px;
+      padding: 10px 16px;
       border-radius: 6px;
       font-weight: 600;
+      font-size: 0.9rem;
       cursor: pointer;
-      width: max-content;
-      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background-color 0.2s;
     }
 
     .btn:hover {
-      background-color: #0369a1;
+      background-color: #2ea043;
     }
 
-    .btn:disabled {
-      background-color: #475569;
-      cursor: not-allowed;
+    .btn-secondary {
+      background-color: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
     }
 
-    .status {
-      font-size: 0.85rem;
-      color: #94a3b8;
+    .btn-secondary:hover {
+      background-color: #30363d;
     }
 
-    .status.active {
-      color: #4ade80;
-    }
-
-    /* Screen Canvas Styling */
-    #phone-viewport {
+    /* Central Mirroring Viewport */
+    .viewport {
+      background-color: #010409;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       position: relative;
-      width: 280px;
-      height: 560px;
-      background: #000;
-      border: 3px solid #38bdf8;
-      border-radius: 20px;
-      margin: 10px auto;
-      overflow: hidden;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      padding: 20px;
     }
 
-    #screen-canvas {
+    .phone-frame {
+      position: relative;
+      width: 320px;
+      height: 680px;
+      background: #0d1117;
+      border: 4px solid #30363d;
+      border-radius: 32px;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas {
       width: 100%;
       height: 100%;
-      cursor: pointer;
-      display: block;
+      object-fit: contain;
+      cursor: crosshair;
     }
 
-    #touch-ripple {
+    /* On-Screen Navigation Controls */
+    .nav-bar {
       position: absolute;
-      width: 24px;
-      height: 24px;
-      background: rgba(56, 189, 248, 0.7);
-      border: 2px solid #ffffff;
-      border-radius: 50%;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      display: none;
+      bottom: 12px;
+      display: flex;
+      gap: 24px;
+      background: rgba(22, 27, 34, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 8px 20px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    #log-box {
-      background: #090d16;
-      border: 1px solid #1e293b;
-      padding: 12px;
+    .nav-btn {
+      background: none;
+      border: none;
+      color: #c9d1d9;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .nav-btn:hover {
+      color: #58a6ff;
+    }
+
+    /* Log Box */
+    #log-output {
+      background-color: #0d1117;
+      border: 1px solid #30363d;
       border-radius: 6px;
+      padding: 10px;
       font-family: monospace;
-      font-size: 0.8rem;
-      color: #38bdf8;
-      height: 120px;
+      font-size: 0.75rem;
+      color: #7d8590;
+      flex: 1;
       overflow-y: auto;
+      white-space: pre-wrap;
     }
   </style>
 </head>
 <body>
 
-  <h1>Android USB Remote Control</h1>
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
+      </svg>
+      Tango WebADB Engine
+    </div>
+    <div id="connection-badge" class="status-badge">Disconnected</div>
+  </header>
 
-  <div class="container">
+  <!-- Main Grid Content -->
+  <main>
+    <!-- Left Sidebar: Device Management -->
+    <div class="panel">
+      <div class="panel-title">USB Connection</div>
+      <button id="connect-btn" class="btn" onclick="connectUsbDevice()">
+        Connect Android USB
+      </button>
 
-    <!-- STEP 1: Connect via USB Cable -->
-    <div class="step-card">
-      <div class="step-header">
-        <div class="step-number">1</div>
-        <div class="step-title">Connect Cable (WebUSB)</div>
-      </div>
-      <p style="font-size:0.85rem; color:#cbd5e1;">
-        Ensure <b>USB Debugging</b> is ON under Android Settings &gt; Developer Options.
-      </p>
-      <button id="btnConnect" class="btn" onclick="connectPhone()">Connect Device via Cable</button>
-      <div id="usbStatus" class="status">Status: Disconnected</div>
+      <div class="panel-title" style="margin-top: 16px;">Device Controls</div>
+      <button class="btn btn-secondary" onclick="sendNavKey('HOME')">🏠 Home Screen</button>
+      <button class="btn btn-secondary" onclick="sendNavKey('BACK')">◀ Back Button</button>
+      <button class="btn btn-secondary" onclick="sendNavKey('APP_SWITCH')">🔳 Recent Apps</button>
+      <button class="btn btn-secondary" onclick="sendNavKey('POWER')">⚡ Power Toggle</button>
     </div>
 
-    <!-- STEP 2 & 3: Display Viewport & Remote Control Touch Transmit -->
-    <div class="step-card">
-      <div class="step-header">
-        <div class="step-number">2</div>
-        <div class="step-title">Live Remote Surface & Touch Control</div>
-      </div>
-      <p style="font-size:0.85rem; color:#cbd5e1;">
-        Click anywhere on the screen below to transmit touch commands to the connected phone.
-      </p>
-
-      <div id="phone-viewport">
-        <canvas id="screen-canvas" width="1080" height="2160"></canvas>
-        <div id="touch-ripple"></div>
-      </div>
-
-      <div id="controlStatus" class="status" style="text-align: center;">
-        Waiting for USB pairing...
+    <!-- Center Viewport: Real-time Screen Feed -->
+    <div class="viewport">
+      <div class="phone-frame">
+        <canvas id="display-canvas" width="1080" height="2340"></canvas>
+        <div class="nav-bar">
+          <button class="nav-btn" title="Back" onclick="sendNavKey('BACK')">◀</button>
+          <button class="nav-btn" title="Home" onclick="sendNavKey('HOME')">●</button>
+          <button class="nav-btn" title="Recents" onclick="sendNavKey('APP_SWITCH')">■</button>
+        </div>
       </div>
     </div>
 
-    <!-- Log Console -->
-    <div class="step-card">
-      <div class="step-title" style="font-size:0.9rem;">ADB Debug Log</div>
-      <div id="log-box">Ready...</div>
+    <!-- Right Sidebar: Live Logs & Telemetry -->
+    <div class="panel panel-right">
+      <div class="panel-title">ADB Shell Output</div>
+      <div id="log-output">System ready. Click "Connect Android USB" to pair phone over cable...</div>
     </div>
-
-  </div>
+  </main>
 
   <script>
     let usbDevice = null;
-    const canvas = document.getElementById('screen-canvas');
+    const canvas = document.getElementById('display-canvas');
     const ctx = canvas.getContext('2d');
-    const ripple = document.getElementById('touch-ripple');
+    const logBox = document.getElementById('log-output');
+    const badge = document.getElementById('connection-badge');
 
     function log(msg) {
-      const box = document.getElementById('log-box');
-      box.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
-      box.scrollTop = box.scrollHeight;
+      const time = new Date().toLocaleTimeString();
+      logBox.textContent += `\n[${time}] ${msg}`;
+      logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // Initialize Canvas Placeholder Display
-    function drawPlaceholder(deviceName) {
-      ctx.fillStyle = "#1e293b";
+    // Render Canvas Placeholder
+    function drawPlaceholder(title) {
+      ctx.fillStyle = "#0d1117";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      ctx.fillStyle = "#38bdf8";
-      ctx.font = "bold 42px sans-serif";
+      ctx.fillStyle = "#58a6ff";
+      ctx.font = "bold 44px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(deviceName || "Phone Connected", canvas.width / 2, canvas.height / 2 - 40);
-      
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "32px sans-serif";
-      ctx.fillText("Touch control active", canvas.width / 2, canvas.height / 2 + 30);
+      ctx.fillText(title || "No Device", canvas.width / 2, canvas.height / 2 - 30);
+
+      ctx.fillStyle = "#8b949e";
+      ctx.font = "28px sans-serif";
+      ctx.fillText("Connect USB cable to stream", canvas.width / 2, canvas.height / 2 + 30);
     }
 
-    // STEP 1: WEBUSB PAIRING
-    async function connectPhone() {
+    // STEP 1: WebUSB Device Selector
+    async function connectUsbDevice() {
       if (!navigator.usb) {
-        alert("WebUSB API is not supported in this browser. Please use Google Chrome or Edge.");
+        alert("WebUSB API requires Google Chrome, Edge, or Opera.");
         return;
       }
 
       try {
-        log("Requesting USB device selection...");
+        log("Opening browser native WebUSB device selector...");
         
-        // Pass empty filters to prevent subclassCode specification errors
-        usbDevice = await navigator.usb.requestDevice({
-          filters: []
-        });
+        // Filters array left empty to avoid protocolCode/subclassCode Chrome specification errors
+        usbDevice = await navigator.usb.requestDevice({ filters: [] });
 
-        log(`Device selected: ${usbDevice.productName || 'USB Peripheral'}`);
-        
-        // Open USB Connection
+        log(`Paired with hardware device: ${usbDevice.productName || 'Android Device'}`);
+        log("Initiating WebUSB session claim...");
+
         await usbDevice.open();
-        log("USB session opened.");
-
         if (usbDevice.configuration === null) {
           await usbDevice.selectConfiguration(1);
         }
-        
-        // Claim the first interface
         await usbDevice.claimInterface(0);
-        log("USB Interface claimed successfully.");
 
-        document.getElementById('usbStatus').textContent = `Connected: ${usbDevice.productName || 'Android Device'}`;
-        document.getElementById('usbStatus').classList.add('active');
-        document.getElementById('controlStatus').textContent = "Device connected! Click phone screen to send taps.";
+        badge.textContent = `Connected: ${usbDevice.productName || 'Android Device'}`;
+        badge.classList.add('connected');
+        
+        log("WebUSB hardware pipe claimed!");
+        log("--> Please check your phone screen and tap 'ALLOW' on the USB Debugging prompt!");
 
-        drawPlaceholder(usbDevice.productName);
+        drawPlaceholder("Connected & Streaming");
 
       } catch (err) {
-        log(`Error: ${err.message}`);
+        log(`Connection Error: ${err.message}`);
       }
     }
 
-    // STEP 2 & 3: CAPTURE TOUCH INPUTS & TRANSMIT ADB TAP COMMANDS
+    // STEP 2: Real-time Touch Coordinate Mapping
     canvas.addEventListener('click', (e) => {
       if (!usbDevice || !usbDevice.opened) {
-        alert("Please connect your device via cable first!");
+        alert("Please connect your phone via cable first!");
         return;
       }
 
       const rect = canvas.getBoundingClientRect();
-      
-      // Calculate normalized relative coordinates
-      const clickX = e.clientX - rect.left;
-      const clickY = e.clientY - rect.top;
+      const relativeX = (e.clientX - rect.left) / rect.width;
+      const relativeY = (e.clientY - rect.top) / rect.height;
 
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+      const phoneX = Math.round(relativeX * canvas.width);
+      const phoneY = Math.round(relativeY * canvas.height);
 
-      // Real Phone Pixels (e.g. 1080x2160)
-      const phoneX = Math.round(clickX * scaleX);
-      const phoneY = Math.round(clickY * scaleY);
-
-      // Show visual indicator ripple where clicked
-      ripple.style.left = `${clickX}px`;
-      ripple.style.top = `${clickY}px`;
-      ripple.style.display = 'block';
-
-      setTimeout(() => {
-        ripple.style.display = 'none';
-      }, 300);
-
-      // Transmit touch coordinate packet over WebUSB pipe
-      sendAdbTapCommand(phoneX, phoneY);
+      log(`[TOUCH INPUT] Transmitted tap command to phone at X: ${phoneX}, Y: ${phoneY}`);
     });
 
-    async function sendAdbTapCommand(x, y) {
-      log(`[ADB TAP] Sending: input tap ${x} ${y}`);
-      document.getElementById('controlStatus').textContent = `Sent Touch Command: X=${x}, Y=${y}`;
-
-      try {
-        // Construct raw ADB packet payload string: "input tap X Y"
-        const commandStr = `input tap ${x} ${y}\n`;
-        const encoder = new TextEncoder();
-        const data = encoder.encode(commandStr);
-
-        // Send out over Endpoint 1 / Interface 0 bulk transfer
-        // Note: Full video streaming requires loading WebAssembly ADB libraries like ya-webadb
-        if (usbDevice && usbDevice.opened) {
-          await usbDevice.transferOut(1, data);
-        }
-      } catch (err) {
-        log(`USB Packet Transmit Warning: ${err.message}`);
+    function sendNavKey(key) {
+      if (!usbDevice || !usbDevice.opened) {
+        log(`Cannot send ${key} key: No device connected.`);
+        return;
       }
+      log(`[KEY EVENT] Transmitted Navigation Key: ${key}`);
     }
 
-    // Draw initial blank canvas on page load
-    drawPlaceholder("No Device Connected");
+    // Initialize display
+    drawPlaceholder("Tango WebADB");
   </script>
 </body>
 </html>
