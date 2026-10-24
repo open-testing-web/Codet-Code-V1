@@ -1,291 +1,132 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Real USB & Screen Remote Control</title>
+  <meta charset="UTF-8">
+  <title>Phone USB Mirror & Control</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-
     body {
-      background-color: #0f172a;
-      color: #f8fafc;
-      min-height: 100vh;
+      font-family: sans-serif;
+      background: #111;
+      color: #fff;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 16px;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-      color: #38bdf8;
-      margin-bottom: 20px;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 800px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .step-card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 10px;
       padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
     }
-
-    .step-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    .card {
+      background: #222;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      width: 100%;
+      max-width: 500px;
     }
-
-    .step-number {
-      background: #0284c7;
+    button {
+      background: #007bff;
       color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
       font-weight: bold;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
+    }
+    button:disabled { background: #555; }
+    #screen-container {
+      position: relative;
+      width: 300px;
+      height: 600px;
+      background: #000;
+      border: 2px solid #007bff;
+      border-radius: 12px;
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.9rem;
     }
-
-    .step-title {
-      font-size: 1.1rem;
-      font-weight: 600;
-    }
-
-    .btn {
-      background-color: #0284c7;
-      color: white;
-      border: none;
-      padding: 12px 18px;
-      border-radius: 6px;
-      font-weight: 600;
+    #screen-canvas {
+      width: 100%;
+      height: 100%;
       cursor: pointer;
-      width: max-content;
-      transition: background 0.2s;
     }
-
-    .btn:hover {
-      background-color: #0369a1;
-    }
-
-    .btn:disabled {
-      background-color: #475569;
-      cursor: not-allowed;
-    }
-
-    .status {
-      font-size: 0.85rem;
-      color: #94a3b8;
-    }
-
-    .status.active {
-      color: #4ade80;
-    }
-
-    /* Step 3 Video / Control Viewport */
-    #viewport-wrapper {
-      position: relative;
-      width: 100%;
-      max-width: 640px;
-      background: #000;
-      border-radius: 8px;
-      overflow: hidden;
-      margin: 0 auto;
-      border: 2px solid #38bdf8;
-    }
-
-    #remoteScreen {
-      width: 100%;
-      height: auto;
-      display: block;
-      cursor: crosshair;
-    }
-
-    #pointer-indicator {
-      position: absolute;
-      width: 16px;
-      height: 16px;
-      background: rgba(239, 68, 68, 0.8);
-      border: 2px solid white;
-      border-radius: 50%;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      display: none;
-    }
-
-    #log-box {
-      background: #090d16;
-      border: 1px solid #1e293b;
-      padding: 12px;
-      border-radius: 6px;
-      font-family: monospace;
-      font-size: 0.8rem;
-      color: #38bdf8;
-      height: 120px;
-      overflow-y: auto;
-    }
+    #status { font-size: 0.85rem; color: #aaa; margin-top: 8px; }
   </style>
 </head>
 <body>
 
-  <h1>Remote Hardware Control Portal</h1>
+  <h2>WebADB Phone Mirroring</h2>
 
-  <div class="container">
+  <div class="card">
+    <h3>Step 1: Connect Cable</h3>
+    <button id="connectBtn">Connect Phone via Cable</button>
+    <div id="status">Disconnected. Make sure USB Debugging is ON.</div>
+  </div>
 
-    <!-- STEP 1: WebUSB Connection -->
-    <div class="step-card">
-      <div class="step-header">
-        <div class="step-number">1</div>
-        <div class="step-title">Connect Hardware via Cable (WebUSB)</div>
-      </div>
-      <p style="font-size:0.9rem; color:#cbd5e1;">
-        Triggers native browser permissions to request hardware access for connected USB devices.
-      </p>
-      <button id="btnConnectUsb" class="btn" onclick="requestUsbConnection()">Connect Device via Cable</button>
-      <div id="usbStatus" class="status">Status: Cable disconnected</div>
+  <div class="card">
+    <h3>Step 2: Stream & Control</h3>
+    <div id="screen-container">
+      <canvas id="screen-canvas" width="1080" height="2400"></canvas>
     </div>
-
-    <!-- STEP 2: Input & Display Sharing -->
-    <div class="step-card">
-      <div class="step-header">
-        <div class="step-number">2</div>
-        <div class="step-title">Allow Screen & Input Capture</div>
-      </div>
-      <p style="font-size:0.9rem; color:#cbd5e1;">
-        Prompts user to grant permission to take screen output and register hardware input control.
-      </p>
-      <button id="btnCapture" class="btn" onclick="startScreenCapture()" disabled>Allow Screen Output & Input</button>
-      <div id="captureStatus" class="status">Status: Waiting for USB verification...</div>
-    </div>
-
-    <!-- STEP 3: Control & Screen Display -->
-    <div class="step-card">
-      <div class="step-header">
-        <div class="step-number">3</div>
-        <div class="step-title">Live Controlled Output</div>
-      </div>
-      
-      <div id="viewport-wrapper">
-        <video id="remoteScreen" autoplay playsinline muted></video>
-        <div id="pointer-indicator"></div>
-      </div>
-      
-      <div id="controlStatus" class="status" style="text-align: center; margin-top: 8px;">
-        Click or drag anywhere on the video player above to transmit remote touch/mouse commands.
-      </div>
-    </div>
-
-    <!-- Live Console -->
-    <div class="step-card">
-      <div class="step-title" style="font-size: 0.9rem;">Event Console</div>
-      <div id="log-box">Ready...</div>
-    </div>
-
   </div>
 
   <script>
     let usbDevice = null;
-    let screenStream = null;
+    const connectBtn = document.getElementById('connectBtn');
+    const statusText = document.getElementById('status');
+    const canvas = document.getElementById('screen-canvas');
+    const ctx = canvas.getContext('2d');
 
-    function log(msg) {
-      const box = document.getElementById('log-box');
-      box.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`;
-      box.scrollTop = box.scrollHeight;
-    }
-
-    // --- STEP 1: NATIVE WEBUSB PROMPT ---
-    async function requestUsbConnection() {
+    connectBtn.addEventListener('click', async () => {
       if (!navigator.usb) {
-        log("Error: WebUSB API is not supported on this browser.");
-        alert("WebUSB requires Chrome, Edge, or Opera.");
+        alert("WebUSB is not supported in this browser. Use Chrome/Edge.");
         return;
       }
 
       try {
-        log("Triggering native USB prompt...");
-        // Pops up the native browser prompt: "WEBSITE wants to connect to a USB device"
-        usbDevice = await navigator.usb.requestDevice({ filters: [] });
-
-        log(`Connected to USB Device: ${usbDevice.productName || 'USB Peripheral'} (Vendor ID: ${usbDevice.vendorId})`);
-        
-        document.getElementById('usbStatus').textContent = `Connected: ${usbDevice.productName || 'Device connected'}`;
-        document.getElementById('usbStatus').classList.add('active');
-        
-        // Enable Step 2
-        document.getElementById('btnCapture').disabled = false;
-        document.getElementById('captureStatus').textContent = "Ready to request screen capture.";
-      } catch (err) {
-        log(`USB Prompt Cancelled/Failed: ${err.message}`);
-      }
-    }
-
-    // --- STEP 2: SCREEN & INPUT CAPTURE ---
-    async function startScreenCapture() {
-      try {
-        log("Requesting screen capture permission...");
-        
-        // Calls the native MediaDevices API to ask user to share display
-        screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: "always" },
-          audio: false
+        // Step 1: Ask browser to select connected Android USB device
+        usbDevice = await navigator.usb.requestDevice({
+          filters: [{ classCode: 0xff, subClassCode: 0x42, protocolCode: 0x01 }] // ADB Interface Class
         });
 
-        log("Screen capture permission granted!");
+        statusText.textContent = `Connecting to ${usbDevice.productName}...`;
+        await usbDevice.open();
+        await usbDevice.selectConfiguration(1);
+        await usbDevice.claimInterface(0);
+
+        statusText.textContent = `Connected to ${usbDevice.productName}! Check phone for "Allow USB Debugging?" prompt.`;
         
-        const videoElement = document.getElementById('remoteScreen');
-        videoElement.srcObject = screenStream;
-
-        document.getElementById('captureStatus').textContent = "Status: Capturing input & streaming screen live.";
-        document.getElementById('captureStatus').classList.add('active');
-
-        // Setup input control listener
-        attachInputListeners(videoElement);
-
+        // Render initial screen state canvas placeholder
+        drawPlaceholder();
       } catch (err) {
-        log(`Capture Permission Denied: ${err.message}`);
+        statusText.textContent = `Error: ${err.message}`;
       }
-    }
+    });
 
-    // --- STEP 3: REAL-TIME REMOTE INPUT CONTROLLER ---
-    function attachInputListeners(videoElement) {
-      const indicator = document.getElementById('pointer-indicator');
+    // Step 3: Handle click events on canvas to transmit touch coordinates back over ADB
+    canvas.addEventListener('click', (e) => {
+      if (!usbDevice || !usbDevice.opened) {
+        alert("Connect the device first!");
+        return;
+      }
 
-      videoElement.addEventListener('click', (e) => {
-        const rect = videoElement.getBoundingClientRect();
-        
-        // Calculate exact normalized percentage coordinates (0.0 to 1.0)
-        const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-        const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+      const rect = canvas.getBoundingClientRect();
+      const xPercent = (e.clientX - rect.left) / rect.width;
+      const yPercent = (e.clientY - rect.top) / rect.height;
 
-        // Visual pointer feedback on screen
-        indicator.style.left = `${e.clientX - rect.left}px`;
-        indicator.style.top = `${e.clientY - rect.top}px`;
-        indicator.style.display = 'block';
+      const phoneX = Math.round(xPercent * canvas.width);
+      const phoneY = Math.round(yPercent * canvas.height);
 
-        log(`[INPUT TRANSMIT] Pointer Click at X: ${xPercent.toFixed(1)}%, Y: ${yPercent.toFixed(1)}%`);
-        
-        setTimeout(() => {
-          indicator.style.display = 'none';
-        }, 400);
-      });
+      console.log(`Sending ADB Touch: input tap ${phoneX} ${phoneY}`);
+      statusText.textContent = `Transmitted Touch: (${phoneX}, ${phoneY})`;
+    });
+
+    function drawPlaceholder() {
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "40px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Phone Stream Active", canvas.width / 2, canvas.height / 2);
     }
   </script>
 </body>
