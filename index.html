@@ -2,165 +2,113 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Raw WebADB Controller</title>
+  <title>Browser Phone Controller</title>
   <style>
-    body {
-      background-color: #121212;
-      color: #00ff66;
-      font-family: monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
-    }
-    #controls {
-      margin-bottom: 20px;
-      text-align: center;
-    }
-    button {
-      background: #00ff66;
-      color: #000;
-      font-weight: bold;
-      border: none;
-      padding: 10px 20px;
-      cursor: pointer;
-      font-size: 16px;
-      border-radius: 4px;
-    }
-    button:hover { background: #00cc55; }
-    #status { margin-top: 10px; font-size: 14px; }
-    #phone-screen {
-      max-width: 320px; /* Adjust size on your computer */
-      border: 2px solid #00ff66;
-      border-radius: 12px;
-      cursor: crosshair;
-      display: none; /* Hidden until connected */
-    }
+    body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
+    button { background: #0ea5e9; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px; margin-bottom: 15px; }
+    button:hover { background: #0284c7; }
+    #status { color: #94a3b8; margin-bottom: 20px; font-family: monospace; }
+    #screen-container { display: none; margin: 0 auto; border: 4px solid #38bdf8; border-radius: 12px; width: fit-content; overflow: hidden; }
+    #phone-screen { display: block; max-height: 70vh; cursor: crosshair; }
   </style>
 </head>
 <body>
 
-  <div id="controls">
-    <button id="connectBtn">Connect Phone</button>
-    <div id="status">Status: Waiting for USB...</div>
+  <h2>Live Phone Remote</h2>
+  <button id="connectBtn">1. Connect via Cable</button>
+  <div id="status">Waiting to connect... (Make sure USB Debugging is ON)</div>
+
+  <div id="screen-container">
+    <img id="phone-screen" alt="Phone Display" />
   </div>
 
-  <!-- This image tag will display the live screenshots from the phone -->
-  <img id="phone-screen" alt="Phone Screen Feed" />
-
-  <!-- Import the WebADB libraries directly from ESM modules -->
   <script type="module">
-    import { Adb, AdbDaemonTransport } from 'https://esm.sh/@yume-chan/adb@0.0.20';
-    import { AdbDaemonWebUsbDeviceManager } from 'https://esm.sh/@yume-chan/adb-backend-webusb@0.0.20';
-    import { AdbCredentialWeb } from 'https://esm.sh/@yume-chan/adb-credential-web@0.0.20';
+    import { Adb, AdbDaemonTransport } from 'https://esm.sh/@yume-chan/adb@0.0.22';
+    import { AdbDaemonWebUsbDeviceManager } from 'https://esm.sh/@yume-chan/adb-backend-webusb@0.0.22';
+    import { AdbCredentialWeb } from 'https://esm.sh/@yume-chan/adb-credential-web@0.0.22';
 
-    const connectBtn = document.getElementById('connectBtn');
-    const statusEl = document.getElementById('status');
-    const screenImg = document.getElementById('phone-screen');
-    
-    let adbSession = null;
+    const btn = document.getElementById('connectBtn');
+    const status = document.getElementById('status');
+    const container = document.getElementById('screen-container');
+    const screen = document.getElementById('phone-screen');
+    let adb = null;
 
-    connectBtn.addEventListener('click', async () => {
+    btn.addEventListener('click', async () => {
       try {
-        statusEl.innerText = "Status: Select your device from the Chrome popup...";
+        status.innerText = "Select your phone from the browser prompt...";
         
-        // 1. Request USB Device via Native Browser Prompt
+        // 1. Request USB Access
         const Manager = AdbDaemonWebUsbDeviceManager.BROWSER;
         const device = await Manager.requestDevice();
-        
-        if (!device) {
-          statusEl.innerText = "Status: Connection cancelled.";
-          return;
-        }
+        if (!device) return;
 
-        statusEl.innerText = "Status: Device found! Check your phone screen and tap 'ALLOW USB DEBUGGING'.";
+        status.innerText = "Connecting to device hardware...";
         const connection = await device.connect();
 
-        // 2. Generate RSA Security Keys for Android Auth
+        // 2. Generate RSA Key & Trigger Android's "Allow USB Debugging" prompt
+        status.innerText = "Check your phone screen and tap 'ALLOW USB DEBUGGING'...";
         const credentialStore = new AdbCredentialWeb();
-        await credentialStore.generateKey(); // Creates key if it doesn't exist
+        await credentialStore.generateKey();
 
-        // 3. Complete the ADB Handshake
         const transport = await AdbDaemonTransport.authenticate({
             serial: device.serial,
             connection,
             credentialStore,
         });
         
-        adbSession = new Adb(transport);
+        adb = new Adb(transport);
 
-        statusEl.innerText = "Status: Connected successfully! Starting screen feed...";
-        screenImg.style.display = "block";
-        connectBtn.style.display = "none";
+        status.innerText = "Connected! Loading screen feed...";
+        btn.style.display = "none";
+        container.style.display = "block";
 
-        // Start the continuous screenshot loop
-        startScreenFeed();
-
+        streamScreen();
       } catch (err) {
-        statusEl.innerText = `Error: ${err.message}`;
-        console.error(err);
+        status.innerText = `Error: ${err.message}`;
       }
     });
 
-    // --- CONTINUOUS SCREENSHOT LOOP ---
-    async function startScreenFeed() {
+    // 3. Capture Screen Feed (Raw ADB Screenshot Loop)
+    async function streamScreen() {
       while (true) {
         try {
-          // Ask Android to take a raw screenshot and output the PNG bytes
-          const process = await adbSession.subprocess.spawn('screencap -p');
-          const reader = process.stdout.getReader();
+          const process = await adb.subprocess.spawn('screencap -p');
           const chunks = [];
+          const reader = process.stdout.getReader();
           
-          // Read all the bytes coming through the USB cable
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             chunks.push(value);
           }
 
-          // Convert raw bytes into an Image and render it
           const blob = new Blob(chunks, { type: 'image/png' });
           const url = URL.createObjectURL(blob);
           
-          if (screenImg.src) {
-             URL.revokeObjectURL(screenImg.src); // Prevent memory leaks
-          }
-          screenImg.src = url;
-
+          if (screen.src) URL.revokeObjectURL(screen.src);
+          screen.src = url;
         } catch (e) {
-          console.error("Screenshot error, retrying...", e);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.error("Screen read failed, retrying...");
+          await new Promise(r => setTimeout(r, 1000));
         }
       }
     }
 
-    // --- REMOTE TOUCH CONTROL ---
-    screenImg.addEventListener('click', async (e) => {
-      if (!adbSession) return;
-      
-      const rect = screenImg.getBoundingClientRect();
-      
-      // Calculate where you clicked relative to the real phone's resolution
-      const scaleX = screenImg.naturalWidth / rect.width;
-      const scaleY = screenImg.naturalHeight / rect.height;
+    // 4. Send Touch Inputs to Phone
+    screen.addEventListener('click', async (e) => {
+      if (!adb) return;
+      const rect = screen.getBoundingClientRect();
+      const scaleX = screen.naturalWidth / rect.width;
+      const scaleY = screen.naturalHeight / rect.height;
       
       const realX = Math.round((e.clientX - rect.left) * scaleX);
       const realY = Math.round((e.clientY - rect.top) * scaleY);
       
-      statusEl.innerText = `Status: Sending touch at X:${realX}, Y:${realY}`;
+      status.innerText = `Sent Tap at: ${realX}, ${realY}`;
       
-      // Execute the Android tap command over ADB
-      const process = await adbSession.subprocess.spawn(`input tap ${realX} ${realY}`);
-      
-      // Wait for the tap command to finish sending
+      const process = await adb.subprocess.spawn(`input tap ${realX} ${realY}`);
       const reader = process.stdout.getReader();
-      while (true) {
-        const { done } = await reader.read();
-        if (done) break;
-      }
-      
-      statusEl.innerText = `Status: Screen Feed Active`;
+      while (!(await reader.read()).done) {} 
     });
   </script>
 </body>
